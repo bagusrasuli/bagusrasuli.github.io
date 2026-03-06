@@ -1,0 +1,1657 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TeleRelay</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" />
+    <!-- QR Code generator -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- QR Code scanner: jsQR (lightweight, no state machine) -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+    <style>
+        body {
+            background: #1a1a2e;
+            color: #eee;
+            font-family: 'Segoe UI', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 16px;
+            box-sizing: border-box;
+        }
+
+        #setup-card,
+        #chat-card {
+            width: 100%;
+            max-width: 900px;
+            /* laptop: lebar maksimal */
+            margin: 0 auto;
+        }
+
+        .card {
+            background: #16213e;
+            border: 1px solid #0f3460;
+            border-radius: 12px;
+        }
+
+        .card-header {
+            background: #0f3460;
+            border-radius: 12px 12px 0 0;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+
+        #chat-box {
+            /* Tinggi dinamis: viewport dikurangi header + input area + padding */
+            height: calc(100vh - 260px);
+            overflow-y: auto;
+            background: #0d1b2a;
+            border-radius: 8px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .msg-bubble {
+            max-width: 80%;
+            padding: 7px 12px;
+            border-radius: 14px;
+            font-size: 0.9rem;
+            word-break: break-word;
+        }
+
+        .msg-bot {
+            background: #0f3460;
+            align-self: flex-start;
+            border-bottom-left-radius: 3px;
+        }
+
+        .msg-other {
+            background: #1b4332;
+            align-self: flex-start;
+            border-bottom-left-radius: 3px;
+        }
+
+        .msg-time {
+            font-size: 0.68rem;
+            color: #aaa;
+            margin-top: 2px;
+        }
+
+        .msg-sender {
+            font-size: 0.72rem;
+            color: #90e0ef;
+            margin-bottom: 1px;
+            font-weight: 600;
+        }
+
+        #msg-input {
+            background: #0d1b2a;
+            color: #eee;
+            border: 1px solid #0f3460;
+            border-radius: 8px;
+        }
+
+        #msg-input:focus {
+            background: #0d1b2a;
+            color: #fff;
+            border-color: #e94560;
+            box-shadow: none;
+        }
+
+        #btn-send {
+            background: #e94560;
+            border: none;
+            border-radius: 8px;
+        }
+
+        #btn-send:hover {
+            background: #c73652;
+        }
+
+        #status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            background: #aaa;
+            margin-right: 5px;
+            vertical-align: middle;
+        }
+
+        #status-dot.online {
+            background: #2ecc71;
+        }
+
+        #status-dot.offline {
+            background: #e74c3c;
+        }
+
+        .form-control-dark {
+            background: #0d1b2a !important;
+            color: #eee !important;
+            border: 1px solid #0f3460 !important;
+        }
+
+        .form-control-dark:focus {
+            border-color: #e94560 !important;
+            box-shadow: none !important;
+            color: #fff !important;
+        }
+
+        label {
+            color: #90e0ef;
+            font-size: 0.85rem;
+        }
+
+        small.text-muted {
+            color: #7a8fa6 !important;
+        }
+
+        #btn-save {
+            background: #0f3460;
+            border: none;
+        }
+
+        #btn-save:hover {
+            background: #e94560;
+        }
+
+        #btn-logout {
+            background: transparent;
+            border: 1px solid #555;
+            color: #aaa;
+            font-size: 0.78rem;
+        }
+
+        #btn-logout:hover {
+            border-color: #e94560;
+            color: #e94560;
+        }
+
+        #polling-status {
+            font-size: 0.75rem;
+            color: #7a8fa6;
+        }
+
+        #btn-clear-history {
+            background: transparent;
+            border: 1px solid #555;
+            color: #aaa;
+            font-size: 0.78rem;
+        }
+
+        #btn-clear-history:hover {
+            border-color: #e94560;
+            color: #e94560;
+        }
+
+        .history-divider {
+            text-align: center;
+            font-size: 0.72rem;
+            color: #555;
+            margin: 4px 0;
+            letter-spacing: 0.5px;
+        }
+
+        /* QR Modal */
+        #qr-canvas-wrap {
+            display: flex;
+            justify-content: center;
+            padding: 16px 0 8px;
+        }
+
+        #qr-canvas-wrap canvas,
+        #qr-canvas-wrap img {
+            border-radius: 8px;
+        }
+
+        /* Scanner Modal */
+        #reader {
+            width: 100%;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        #scan-status {
+            font-size: 0.8rem;
+            min-height: 1.4em;
+        }
+
+        .modal-content {
+            background: #16213e;
+            border: 1px solid #0f3460;
+            color: #eee;
+        }
+
+        .modal-header {
+            border-bottom: 1px solid #0f3460;
+        }
+
+        .modal-footer {
+            border-top: 1px solid #0f3460;
+        }
+
+        .close {
+            color: #aaa;
+        }
+
+        .close:hover {
+            color: #e94560;
+        }
+
+        #btn-generate-qr {
+            background: #1b4332;
+            border: none;
+        }
+
+        #btn-generate-qr:hover {
+            background: #2d6a4f;
+        }
+
+        #btn-scan-qr {
+            background: #0f3460;
+            border: none;
+        }
+
+        #btn-scan-qr:hover {
+            background: #1a5276;
+        }
+
+        /* ---- File/Media upload area ---- */
+        #btn-attach {
+            background: #0d1b2a;
+            border: 1px solid #0f3460;
+            border-right: none;
+            color: #90e0ef;
+            border-radius: 8px 0 0 8px;
+            cursor: pointer;
+            padding: 0 10px;
+            font-size: 1.1rem;
+            line-height: 38px;
+            display: inline-block;
+        }
+
+        #btn-attach:hover {
+            color: #e94560;
+        }
+
+        #upload-progress-wrap {
+            background: #0d1b2a;
+            border-radius: 4px;
+            height: 6px;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+
+        #upload-progress-bar {
+            height: 6px;
+            background: #e94560;
+            width: 0;
+            transition: width .2s;
+            border-radius: 4px;
+        }
+
+        /* ---- Media bubble ---- */
+        .msg-media {
+            max-width: 85%;
+        }
+
+        .msg-media img {
+            max-width: 100%;
+            border-radius: 8px;
+            margin-bottom: 4px;
+            display: block;
+            cursor: pointer;
+        }
+
+        .btn-dl {
+            font-size: 0.78rem;
+            padding: 2px 10px;
+            border-radius: 6px;
+            background: #0f3460;
+            color: #eee;
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn-dl:hover {
+            background: #e94560;
+        }
+
+        .media-filename {
+            font-size: 0.8rem;
+            color: #ccc;
+            word-break: break-all;
+        }
+
+        .media-icon {
+            font-size: 1.4rem;
+            margin-right: 6px;
+        }
+
+        /* Help button in header */
+        #btn-help {
+            background: rgba(255, 255, 255, .15);
+            border: 1px solid rgba(255, 255, 255, .3);
+            color: #fff;
+            border-radius: 50%;
+            width: 26px;
+            height: 26px;
+            font-size: .82rem;
+            font-weight: 700;
+            line-height: 24px;
+            text-align: center;
+            cursor: pointer;
+            padding: 0;
+            flex-shrink: 0;
+            transition: background .2s;
+        }
+
+        #btn-help:hover {
+            background: #e94560;
+            border-color: #e94560;
+        }
+
+        /* Tutorial modal */
+        #modal-help .modal-content {
+            background: #16213e;
+            border: 1px solid #0f3460;
+            color: #eee;
+        }
+
+        #modal-help .modal-header {
+            background: #0f3460;
+            border-bottom: 1px solid #1a3a5c;
+        }
+
+        #modal-help .modal-footer {
+            border-top: 1px solid #1a3a5c;
+        }
+
+        #modal-help h6 {
+            color: #90e0ef;
+            margin-top: 1rem;
+            margin-bottom: .4rem;
+            font-weight: 700;
+        }
+
+        #modal-help .step {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+            margin-bottom: .6rem;
+        }
+
+        #modal-help .step-num {
+            background: #e94560;
+            color: #fff;
+            border-radius: 50%;
+            width: 22px;
+            height: 22px;
+            min-width: 22px;
+            font-size: .72rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 2px;
+        }
+
+        #modal-help .step-body {
+            font-size: .85rem;
+            line-height: 1.5;
+        }
+
+        #modal-help code {
+            background: #0d1b2a;
+            color: #90e0ef;
+            padding: 1px 5px;
+            border-radius: 4px;
+            font-size: .8rem;
+        }
+
+        #modal-help .tip {
+            background: #0f3460;
+            border-left: 3px solid #e94560;
+            padding: 6px 10px;
+            border-radius: 0 6px 6px 0;
+            font-size: .8rem;
+            margin-top: .5rem;
+            color: #ccc;
+        }
+
+        /* ============================================================
+           RESPONSIVE BREAKPOINTS
+           ============================================================ */
+
+        /* HP / Mobile (< 576px) */
+        @media (max-width: 575.98px) {
+            body {
+                padding: 8px;
+                justify-content: flex-start;
+            }
+
+            #setup-card,
+            #chat-card {
+                max-width: 100%;
+                margin: 0;
+            }
+
+            #chat-box {
+                /* HP: kurangi overhead karena layar pendek */
+                height: calc(100vh - 240px);
+            }
+
+            .card-body {
+                padding: 12px !important;
+            }
+
+            #chat-card .card-body {
+                padding: 8px !important;
+            }
+
+            .modal-dialog {
+                margin: 8px;
+            }
+        }
+
+        /* Tablet (576px – 991px) */
+        @media (min-width: 576px) and (max-width: 991.98px) {
+            body {
+                padding: 12px;
+            }
+
+            #setup-card,
+            #chat-card {
+                max-width: 680px;
+            }
+
+            #chat-box {
+                height: calc(100vh - 265px);
+            }
+        }
+
+        /* Laptop / Desktop (≥ 992px) */
+        @media (min-width: 992px) {
+            body {
+                padding: 20px;
+            }
+
+            #setup-card,
+            #chat-card {
+                max-width: 900px;
+            }
+
+            #chat-box {
+                height: calc(100vh - 270px);
+            }
+        }
+
+        /* Layar sangat lebar (≥ 1400px) */
+        @media (min-width: 1400px) {
+
+            #setup-card,
+            #chat-card {
+                max-width: 1100px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- ===================== SETUP CARD ===================== -->
+    <div id="setup-card">
+        <div class="card shadow">
+            <div class="card-header text-white py-3 d-flex justify-content-between align-items-center">
+                <span>🚨 TeleRelay — Setup</span>
+                <button id="btn-help" title="Setup Guide" data-toggle="modal" data-target="#modal-help">?</button>
+            </div>
+            <div class="card-body p-4">
+                <div class="form-group">
+                    <label>Bot Token (will be obfuscated &amp; stored locally)</label>
+                    <input type="text" id="input-token" class="form-control form-control-dark"
+                        placeholder="1234567890:ABCdef..." />
+                    <small class="text-muted">Enter your real bot token — it will be encrypted before saving.</small>
+                </div>
+                <div class="form-group">
+                    <label>Telegram Group Chat ID</label>
+                    <input type="text" id="input-chatid" class="form-control form-control-dark"
+                        placeholder="-1001234567890" />
+                    <small class="text-muted">Group chat ID (negative number for supergroups).</small>
+                </div>
+                <div class="form-group">
+                    <label>Your display name in this chat</label>
+                    <input type="text" id="input-myname" class="form-control form-control-dark"
+                        placeholder="Husband / Wife" />
+                </div>
+                <div class="form-group">
+                    <label>Shift Key (numbers separated by commas — min. 4 values)</label>
+                    <input type="text" id="input-shiftkey" class="form-control form-control-dark"
+                        placeholder="Example: -41,-19,11,5" />
+                    <small class="text-muted">This shift key encrypts your token. Write it down and keep it
+                        safe!</small>
+                </div>
+                <div id="setup-error" class="alert alert-danger d-none py-2"></div>
+                <button id="btn-save" class="btn btn-primary btn-block mt-2 text-white">Save &amp; Start Chat</button>
+                <div class="row mt-2">
+                    <div class="col-6 pr-1">
+                        <button id="btn-generate-qr" class="btn btn-block text-white"
+                            title="Generate QR from current form data">
+                            &#9641; Save &amp; Generate QR
+                        </button>
+                    </div>
+                    <div class="col-6 pl-1">
+                        <button id="btn-scan-qr" class="btn btn-block text-white" title="Scan QR with camera">
+                            &#9710; Scan QR Code
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= MODAL: QR CODE ================= -->
+    <div class="modal fade" id="modal-qr" tabindex="-1">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header py-2">
+                    <h6 class="modal-title">&#9641; QR Code Login</h6>
+                    <button type="button" class="close" data-dismiss="modal">&times;</button>
+                </div>
+                <div class="modal-body text-center py-2">
+                    <small class="text-muted d-block mb-2">Scan this QR on another device to log in instantly.</small>
+                    <div id="qr-canvas-wrap"></div>
+                    <small class="text-muted d-block mt-1" id="qr-name-label"></small>
+                </div>
+                <div class="modal-footer py-2 justify-content-between">
+                    <small class="text-muted">⚠ Keep this QR code private</small>
+                    <button id="btn-download-qr" class="btn btn-sm text-white" style="background:#0f3460;">&#8681;
+                        Download</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= MODAL: SCANNER ================= -->
+    <div class="modal fade" id="modal-scan" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header py-2">
+                    <h6 class="modal-title">&#9710; Scan QR Code</h6>
+                    <button type="button" class="close" data-dismiss="modal">&times;</button>
+                </div>
+                <div class="modal-body py-2">
+                    <div id="reader" style="position:relative;">
+                        <video id="scan-video" style="width:100%;border-radius:8px;display:block;" playsinline
+                            muted></video>
+                        <canvas id="scan-canvas" style="display:none;"></canvas>
+                        <!-- overlay kotak panduan -->
+                        <div style="
+                            position:absolute;top:50%;left:50%;
+                            transform:translate(-50%,-50%);
+                            width:200px;height:200px;
+                            border:2px solid #e94560;
+                            border-radius:6px;
+                            pointer-events:none;
+                        "></div>
+                    </div>
+                    <p id="scan-status" class="text-center mt-2 mb-0" style="font-size:.8rem;min-height:1.4em;">
+                        Initializing camera...</p>
+                </div>
+                <div class="modal-footer py-2">
+                    <button type="button" class="btn btn-sm btn-secondary" data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================== CHAT CARD ===================== -->
+    <div id="chat-card" class="d-none">
+        <div class="card shadow">
+            <div class="card-header text-white d-flex justify-content-between align-items-center py-2">
+                <span>🚨 TeleRelay</span>
+                <div>
+                    <span id="status-dot"></span>
+                    <span id="polling-status">Connecting...</span>
+                    <button id="btn-logout" class="btn btn-sm ml-3">Logout</button>
+                </div>
+            </div>
+            <div class="card-body p-3">
+                <div id="chat-box"></div>
+                <div class="input-group mt-3">
+                    <!-- Attach file button -->
+                    <div class="input-group-prepend">
+                        <label for="file-input" id="btn-attach" title="Send file / image">&#128206;</label>
+                        <input type="file" id="file-input" style="display:none" />
+                    </div>
+                    <input type="text" id="msg-input" class="form-control" placeholder="Type a message..."
+                        autocomplete="off" style="border-radius:0;" />
+                    <div class="input-group-append">
+                        <button id="btn-send" class="btn text-white px-3">&#9658;</button>
+                    </div>
+                </div>
+                <!-- Upload progress -->
+                <div id="upload-progress-wrap" class="d-none">
+                    <div id="upload-progress-bar"></div>
+                </div>
+                <div id="upload-status" style="font-size:.75rem;color:#7a8fa6;min-height:1em;"></div>
+                <div class="d-flex justify-content-between align-items-center mt-1">
+                    <button id="btn-clear-history" class="btn btn-sm">🗑 Clear History</button>
+                    <small class="text-muted" id="identity-label"></small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= MODAL: HELP / TUTORIAL ================= -->
+    <div class="modal fade" id="modal-help" tabindex="-1">
+        <div class="modal-dialog modal-dialog-scrollable modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header py-2">
+                    <h6 class="modal-title mb-0">📖 Setup Guide — TeleRelay</h6>
+                    <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+                </div>
+                <div class="modal-body" style="max-height:70vh;overflow-y:auto;">
+
+                    <!-- STEP GROUP 1: Create Bot -->
+                    <h6>① Create a Telegram Bot</h6>
+                    <div class="step">
+                        <div class="step-num">1</div>
+                        <div class="step-body">Open Telegram and search for <code>@BotFather</code>, then start a chat.
+                        </div>
+                    </div>
+                    <div class="step">
+                        <div class="step-num">2</div>
+                        <div class="step-body">Send <code>/newbot</code> and follow the prompts to name your bot.</div>
+                    </div>
+                    <div class="step">
+                        <div class="step-num">3</div>
+                        <div class="step-body">Copy the <strong>Bot Token</strong> (e.g.
+                            <code>7123456789:AAHxxxx...</code>) and paste it into the <em>Bot Token</em> field.
+                        </div>
+                    </div>
+                    <div class="step">
+                        <div class="step-num">4</div>
+                        <div class="step-body"><strong>Disable Privacy Mode</strong> — send <code>/setprivacy</code> to
+                            @BotFather → select your bot → choose <strong>Disable</strong>. Without this the bot cannot
+                            read group messages.</div>
+                    </div>
+
+                    <!-- STEP GROUP 2: Create Group -->
+                    <h6>② Create a Telegram Group</h6>
+                    <div class="step">
+                        <div class="step-num">1</div>
+                        <div class="step-body">Create a new group. Add <strong>yourself</strong>, your
+                            <strong>partner</strong>, and the <strong>bot</strong>.
+                        </div>
+                    </div>
+                    <div class="step">
+                        <div class="step-num">2</div>
+                        <div class="step-body">Send any message in the group (e.g. <code>hello</code>) so the bot
+                            registers an update.</div>
+                    </div>
+
+                    <!-- STEP GROUP 3: Get Chat ID -->
+                    <h6>③ Find Your Group Chat ID</h6>
+                    <div class="step">
+                        <div class="step-num">1</div>
+                        <div class="step-body">Open this URL (replace <code>TOKEN</code>):<br>
+                            <code style="word-break:break-all;">https://api.telegram.org/botTOKEN/getUpdates</code>
+                        </div>
+                    </div>
+                    <div class="step">
+                        <div class="step-num">2</div>
+                        <div class="step-body">Find <code>"chat":{"id":-100xxxxxxxxxx}</code> — that negative number is
+                            your <strong>Chat ID</strong>.</div>
+                    </div>
+                    <div class="tip">💡 Or add <code>@RawDataBot</code> to the group — it posts the Chat ID
+                        automatically.</div>
+
+                    <!-- STEP GROUP 4: Fill Form -->
+                    <h6>④ Fill in the Setup Form</h6>
+                    <div class="step">
+                        <div class="step-num">1</div>
+                        <div class="step-body"><strong>Bot Token</strong> — from @BotFather.</div>
+                    </div>
+                    <div class="step">
+                        <div class="step-num">2</div>
+                        <div class="step-body"><strong>Group Chat ID</strong> — the negative number above.</div>
+                    </div>
+                    <div class="step">
+                        <div class="step-num">3</div>
+                        <div class="step-body"><strong>Display Name</strong> — e.g. <code>Husband</code> or
+                            <code>Wife</code>.
+                        </div>
+                    </div>
+                    <div class="step">
+                        <div class="step-num">4</div>
+                        <div class="step-body"><strong>Shift Key</strong> — 4+ numbers separated by commas (e.g.
+                            <code>-41,-19,11,5</code>). Encrypts your token. <strong>Write it down!</strong>
+                        </div>
+                    </div>
+                    <div class="step">
+                        <div class="step-num">5</div>
+                        <div class="step-body">Click <strong>Save &amp; Start Chat</strong> — done! 🎉</div>
+                    </div>
+
+                    <!-- STEP GROUP 5: QR Code -->
+                    <h6>⑤ Share Access via QR Code (optional)</h6>
+                    <div class="step">
+                        <div class="step-num">1</div>
+                        <div class="step-body">Click <strong>Save &amp; Generate QR</strong> to create a login QR.</div>
+                    </div>
+                    <div class="step">
+                        <div class="step-num">2</div>
+                        <div class="step-body">Download &amp; store it securely (printed in wallet, or encrypted
+                            folder).</div>
+                    </div>
+                    <div class="step">
+                        <div class="step-num">3</div>
+                        <div class="step-body">On another device, click <strong>Scan QR Code</strong> — logged in
+                            instantly, no typing needed.</div>
+                    </div>
+                    <div class="tip">⚠️ QR contains your token in plain text — keep it private.</div>
+
+                </div>
+                <div class="modal-footer py-2">
+                    <button type="button" class="btn btn-sm btn-secondary" data-dismiss="modal">Got it!</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script>
+
+        // ============================================================
+        // OBFUSCATION HELPERS
+        // The token is split into parts, each character shifted
+        // using a user-provided shift key array.
+        // ============================================================
+
+        function obfuscateToken(token, shifts) {
+            // Shift each token character cyclically using the shifts array
+            let result = '';
+            for (let i = 0; i < token.length; i++) {
+                result += String.fromCharCode(token.charCodeAt(i) + shifts[i % shifts.length]);
+            }
+            return result;
+        }
+
+        function deobfuscateToken(obf, shifts) {
+            let result = '';
+            for (let i = 0; i < obf.length; i++) {
+                result += String.fromCharCode(obf.charCodeAt(i) - shifts[i % shifts.length]);
+            }
+            return result;
+        }
+
+        function parseShifts(str) {
+            return str.split(',').map(s => parseInt(s.trim(), 10));
+        }
+
+        // ============================================================
+        // APP STATE
+        // ============================================================
+        const STORAGE_KEY = 'ec_cfg';
+        const HISTORY_KEY = 'ec_history';
+        const LAST_UPDATE_KEY = 'ec_last_upd';   // persist lastUpdateId across sessions
+        const HISTORY_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+        let pollingTimer = null;
+        let lastUpdateId = 0;
+        let myName = '';
+        let botToken = '';  // raw token (in memory only during active session)
+        let chatId = '';
+        let seenUpdateIds = new Set(); // prevent duplicate messages from polling
+
+        // ============================================================
+        // INIT
+        // ============================================================
+        $(function () {
+            loadConfig();
+
+            $('#btn-save').on('click', saveConfig);
+            $('#btn-send').on('click', sendMessage);
+            $('#msg-input').on('keydown', function (e) {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+            });
+            $('#btn-logout').on('click', logout);
+            $('#btn-clear-history').on('click', clearHistory);
+            $('#btn-generate-qr').on('click', generateQr);
+            $('#btn-download-qr').on('click', downloadQr);
+            $('#btn-scan-qr').on('click', startScanner);
+            // Stop camera when scanner modal closes
+            $('#modal-scan').on('hidden.bs.modal', stopScanner);
+            // File attachment
+            $('#file-input').on('change', function () {
+                const file = this.files[0];
+                if (!file) return;
+                this.value = ''; // reset so the same file can be picked again
+                sendFile(file);
+            });
+        });
+
+        // ============================================================
+        // CONFIG
+        // ============================================================
+        function saveConfig() {
+            const rawToken = $('#input-token').val().trim();
+            const rawChatId = $('#input-chatid').val().trim();
+            const rawName = $('#input-myname').val().trim();
+            const rawShift = $('#input-shiftkey').val().trim();
+
+            if (!rawToken || !rawChatId || !rawName || !rawShift) {
+                $('#setup-error').text('All fields are required.').removeClass('d-none');
+                return;
+            }
+
+            const shifts = parseShifts(rawShift);
+            if (shifts.length < 4 || shifts.some(isNaN)) {
+                $('#setup-error').text('Shift key must have at least 4 numbers, separated by commas.').removeClass('d-none');
+                return;
+            }
+
+            const obfToken = obfuscateToken(rawToken, shifts);
+
+            const cfg = {
+                obfToken: obfToken,
+                chatId: rawChatId,
+                myName: rawName,
+                // shift key is also stored — user needs it to reset if localStorage is cleared;
+                // stored in localStorage (not a server), semi-obfuscated
+                shifts: shifts
+            };
+
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
+
+            // Start session with the raw token from the form (no need to deobfuscate)
+            botToken = rawToken;
+            chatId = rawChatId;
+            myName = rawName;
+
+            startSession();
+        }
+
+        function loadConfig() {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) return;
+
+            try {
+                const cfg = JSON.parse(raw);
+                if (!cfg.obfToken || !cfg.chatId || !cfg.myName || !cfg.shifts) return;
+
+                // Deobfuscate token from storage
+                botToken = deobfuscateToken(cfg.obfToken, cfg.shifts);
+                chatId = cfg.chatId;
+                myName = cfg.myName;
+
+                startSession();
+            } catch (e) {
+                localStorage.removeItem(STORAGE_KEY);
+            }
+        }
+
+        function logout() {
+            clearInterval(pollingTimer);
+            pollingTimer = null;
+            lastUpdateId = 0;
+            botToken = '';
+            chatId = '';
+            myName = '';
+            seenUpdateIds = new Set();
+            $('#chat-box').empty();
+            $('#chat-card').addClass('d-none');
+            $('#setup-card').removeClass('d-none');
+            $('#input-token').val('');
+            $('#input-chatid').val('');
+            $('#input-myname').val('');
+            $('#input-shiftkey').val('');
+            $('#setup-error').addClass('d-none');
+            // History is intentionally kept on logout — only config is removed
+            // lastUpdateId stays persisted so next login resumes from the last offset
+            localStorage.removeItem(STORAGE_KEY);
+        }
+
+        function clearHistory() {
+            if (!confirm('Delete all saved chat history?')) return;
+            localStorage.removeItem(HISTORY_KEY);
+            // Also reset lastUpdateId so next load re-fetches from the beginning
+            localStorage.removeItem(LAST_UPDATE_KEY);
+            lastUpdateId = 0;
+            seenUpdateIds = new Set();
+            $('#chat-box').empty();
+        }
+
+        // ============================================================
+        // QR CODE — GENERATE
+        // ============================================================
+
+        /**
+         * Read form fields, validate, then encode as pipe-delimited string into a QR Code.
+         * Encoded data: token|chatId|myName|shifts
+         * (token is stored plain in the QR — security of the QR image is the user's responsibility)
+         */
+        function generateQr() {
+            const rawToken = $('#input-token').val().trim();
+            const rawChatId = $('#input-chatid').val().trim();
+            const rawName = $('#input-myname').val().trim();
+            const rawShift = $('#input-shiftkey').val().trim();
+
+            if (!rawToken || !rawChatId || !rawName || !rawShift) {
+                $('#setup-error').text('Please fill in all fields before generating QR.').removeClass('d-none');
+                return;
+            }
+            const shifts = parseShifts(rawShift);
+            if (shifts.length < 4 || shifts.some(isNaN)) {
+                $('#setup-error').text('Shift key must have at least 4 numbers, separated by commas.').removeClass('d-none');
+                return;
+            }
+            $('#setup-error').addClass('d-none');
+
+            // Pipe-delimited format (more compact than JSON, fits more data in QR)
+            // Format: "token|chatId|myName|shift1,shift2,..."
+            const payload = [rawToken, rawChatId, rawName, rawShift].join('|');
+
+            // Clear old QR and generate new one
+            const $wrap = $('#qr-canvas-wrap').empty();
+            new QRCode($wrap[0], {
+                text: payload,
+                width: 280,
+                height: 280,
+                colorDark: '#000000',
+                colorLight: '#ffffff',
+                correctLevel: QRCode.CorrectLevel.L   // Level L = maximum data capacity
+            });
+
+            // qrcodejs renders asynchronously — wait briefly before adding the white border
+            setTimeout(function () {
+                addWhiteBorder($wrap[0], 24);
+                $('#qr-name-label').text('Name: ' + rawName + '  |  Chat: ' + rawChatId);
+                $('#modal-qr').modal('show');
+            }, 150);
+        }
+
+        /**
+         * Add a quiet zone (white border) around the QR canvas.
+         * QR spec requires at least 4 module quiet zone — without it scanners struggle.
+         * @param {HTMLElement} wrap  - container element (#qr-canvas-wrap[0])
+         * @param {number}      pad   - padding size in pixels (all sides)
+         */
+        function addWhiteBorder(wrap, pad) {
+            const original = wrap.querySelector('canvas');
+            if (!original) return; // qrcodejs may render as <img> in older browsers
+
+            const w = original.width + pad * 2;
+            const h = original.height + pad * 2;
+
+            const bordered = document.createElement('canvas');
+            bordered.width = w;
+            bordered.height = h;
+
+            const ctx = bordered.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, w, h);           // fill entire canvas white
+            ctx.drawImage(original, pad, pad);   // draw QR centered
+
+            // Replace the original canvas with the bordered one
+            wrap.innerHTML = '';
+            wrap.appendChild(bordered);
+        }
+
+        /**
+         * Download the QR as a PNG.
+         * qrcodejs renders to a <canvas> inside #qr-canvas-wrap.
+         */
+        function downloadQr() {
+            const canvas = $('#qr-canvas-wrap canvas')[0];
+            if (!canvas) { alert('QR not generated yet.'); return; }
+            const link = document.createElement('a');
+            link.download = 'telerelay-qr.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+
+        // ============================================================
+        // QR CODE — SCAN (jsQR + getUserMedia)
+        // ============================================================
+
+        let scanStream = null;  // camera MediaStream
+        let scanAnimFrame = null;  // requestAnimationFrame ID
+
+        function startScanner() {
+            $('#scan-status').text('Requesting camera access...').css('color', '#7a8fa6');
+            $('#modal-scan').modal('show');
+
+            // Initialise camera AFTER modal is fully visible (element has dimensions)
+            $('#modal-scan').one('shown.bs.modal', function () {
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    $('#scan-status').text('Camera not supported in this browser.').css('color', '#e94560');
+                    return;
+                }
+
+                // Prefer rear camera (environment) on mobile; fall back to default
+                // Request high resolution so QR details are clearly readable
+                const constraints = {
+                    video: {
+                        facingMode: { ideal: 'environment' },
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                };
+
+                navigator.mediaDevices.getUserMedia(constraints)
+                    .then(function (stream) {
+                        scanStream = stream;
+                        const video = document.getElementById('scan-video');
+                        video.srcObject = stream;
+                        video.play();
+                        $('#scan-status').text('Point camera at the QR Code...').css('color', '#2ecc71');
+                        scanFrame(); // start scan loop
+                    })
+                    .catch(function (err) {
+                        $('#scan-status')
+                            .text('Camera access failed: ' + (err.message || err))
+                            .css('color', '#e94560');
+                    });
+            });
+        }
+
+        function scanFrame() {
+            const video = document.getElementById('scan-video');
+            const canvas = document.getElementById('scan-canvas');
+
+            if (!scanStream) return; // already stopped
+
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const ctx = canvas.getContext('2d');
+
+                // Boost contrast & brightness → helps read QR from phone screens
+                ctx.filter = 'contrast(1.6) brightness(1.1)';
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                ctx.filter = 'none';
+
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                    inversionAttempts: 'attemptBoth'  // try both normal & inverted colors
+                });
+                if (code) {
+                    onScanSuccess(code.data);
+                    return; // success — stop the loop
+                }
+            }
+
+            // Continue to next frame
+            scanAnimFrame = requestAnimationFrame(scanFrame);
+        }
+
+        function onScanSuccess(decodedText) {
+            stopScanner();
+            $('#modal-scan').modal('hide');
+
+            // Debug: always log to console for diagnosis
+            console.log('[QR Scan] raw decoded:', decodedText);
+
+            try {
+                let token, chatId, myName, shifts;
+
+                if (decodedText.indexOf('|') !== -1) {
+                    // New pipe-delimited format: "token|chatId|myName|shift1,shift2,..."
+                    const parts = decodedText.split('|');
+                    if (parts.length < 4) {
+                        throw new Error('Read ' + parts.length + ' parts (need 4).\n\nRaw text:\n' + decodedText.substring(0, 120));
+                    }
+                    token = parts[0].trim();
+                    chatId = parts[1].trim();
+                    myName = parts[2].trim();
+                    shifts = parts[3].trim();
+                } else {
+                    // Fallback: try JSON (legacy format)
+                    const data = JSON.parse(decodedText);
+                    token = data.token;
+                    chatId = data.chatId;
+                    myName = data.myName;
+                    shifts = Array.isArray(data.shifts) ? data.shifts.join(',') : String(data.shifts);
+                }
+
+                if (!token || !chatId || !myName || !shifts) {
+                    throw new Error('Incomplete QR data.\n\nRaw text:\n' + decodedText.substring(0, 120));
+                }
+
+                // Auto-fill form & log in immediately
+                $('#input-token').val(token);
+                $('#input-chatid').val(chatId);
+                $('#input-myname').val(myName);
+                $('#input-shiftkey').val(shifts);
+                saveConfig();
+
+            } catch (e) {
+                alert('Invalid QR: ' + e.message);
+            }
+        }
+
+        function stopScanner() {
+            // Stop the RAF loop
+            if (scanAnimFrame) {
+                cancelAnimationFrame(scanAnimFrame);
+                scanAnimFrame = null;
+            }
+            // Stop the camera stream
+            if (scanStream) {
+                scanStream.getTracks().forEach(function (t) { t.stop(); });
+                scanStream = null;
+            }
+            // Clear the video element
+            const video = document.getElementById('scan-video');
+            if (video) { video.srcObject = null; }
+        }
+
+        // ============================================================
+        // SESSION + POLLING
+        // ============================================================
+        function startSession() {
+            $('#setup-card').addClass('d-none');
+            $('#setup-error').addClass('d-none');
+            $('#chat-card').removeClass('d-none');
+            $('#identity-label').text('Sending as: ' + myName + ' (via bot)');
+
+            loadHistory(); // render saved history first
+
+            setDot('offline');
+            pollUpdates(); // fetch immediately on start
+            pollingTimer = setInterval(pollUpdates, 4000); // every 4 seconds
+        }
+
+        // ============================================================
+        // HISTORY — localStorage (24-hour TTL)
+        // ============================================================
+
+        /**
+         * Save one message entry to history.
+         * Entry: { text, sender, ts (unix ms), cssClass, updateId (optional) }
+         */
+        function saveHistory(entry) {
+            let history = getRawHistory();
+            history = pruneOldMessages(history);
+            history.push(entry);
+            // Cap at 500 messages to avoid filling localStorage
+            if (history.length > 500) history = history.slice(history.length - 500);
+            localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+        }
+
+        function getRawHistory() {
+            try {
+                return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+            } catch (e) {
+                return [];
+            }
+        }
+
+        /** Remove messages older than 24 hours */
+        function pruneOldMessages(history) {
+            const cutoff = Date.now() - HISTORY_TTL_MS;
+            return history.filter(function (e) { return e.ts >= cutoff; });
+        }
+
+        /** Load and render history on first open */
+        function loadHistory() {
+            // ── Restore lastUpdateId from storage ─────────────────────────
+            // IMPORTANT: lastUpdateId must be set BEFORE the first poll.
+            // With offset = lastUpdateId + 1, Telegram will:
+            //   1. Return only NEW updates (after lastUpdateId)
+            //   2. Flush all old updates from the Telegram queue automatically
+            // Without this, every reload would re-fetch all old updates.
+            const storedUpdId = parseInt(localStorage.getItem(LAST_UPDATE_KEY) || '0', 10);
+            if (storedUpdId > lastUpdateId) lastUpdateId = storedUpdId;
+
+            let history = getRawHistory();
+            history = pruneOldMessages(history);
+            // Save back after pruning
+            localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+
+            if (history.length === 0) return;
+
+            // Divider
+            $('#chat-box').append('<div class="history-divider">— Saved history —</div>');
+
+            history.forEach(function (e) {
+                const timeStr = formatTime(Math.floor(e.ts / 1000));
+
+                if (e.type === 'media') {
+                    // Render media bubble without re-saving to history (nowMs=undefined)
+                    appendMediaBubble({
+                        fileId: e.fileId,
+                        mediaType: e.mediaType,
+                        fileName: e.fileName,
+                        fileSize: e.fileSize || 0,
+                        caption: e.caption || '',
+                        sender: e.sender,
+                        ts: timeStr,
+                        nowMs: undefined,   // ← do not save again to history
+                        css: e.cssClass,
+                        updateId: e.updateId
+                    });
+                } else {
+                    renderBubble(e.text, e.sender, timeStr, e.cssClass);
+                }
+
+                // Mark updateId as rendered so polling won't create duplicates
+                if (e.updateId) seenUpdateIds.add(e.updateId);
+                // Ensure lastUpdateId is not lower than stored history values
+                if (e.updateId && e.updateId > lastUpdateId) lastUpdateId = e.updateId;
+            });
+
+            $('#chat-box').append('<div class="history-divider">— Now —</div>');
+
+            const $box = $('#chat-box');
+            $box.scrollTop($box[0].scrollHeight);
+        }
+
+        function setDot(state) {
+            $('#status-dot').attr('class', state);
+            if (state === 'online') {
+                $('#polling-status').text('Connected');
+            } else {
+                $('#polling-status').text('Offline / Failed');
+            }
+        }
+
+        function apiUrl(method) {
+            return 'https://api.telegram.org/bot' + botToken + '/' + method;
+        }
+
+        function pollUpdates() {
+            // offset = lastUpdateId + 1:
+            //   → Telegram returns only NEW updates (update_id >= offset)
+            //   → Telegram automatically flushes old updates from its queue
+            // So every fetch keeps the Telegram queue clean.
+            const params = {
+                offset: lastUpdateId + 1,
+                limit: 100,               // fetch max in one go
+                allowed_updates: ['message']
+            };
+
+            $.ajax({
+                url: apiUrl('getUpdates'),
+                data: params,
+                method: 'GET',
+                timeout: 8000,
+                success: function (res) {
+                    setDot('online');
+                    if (res.ok && res.result.length > 0) {
+                        res.result.forEach(function (upd) {
+                            if (upd.update_id > lastUpdateId) {
+                                lastUpdateId = upd.update_id;
+                            }
+                            if (upd.message) handleIncoming(upd.message, upd.update_id);
+                        });
+                        // Persist lastUpdateId so reload doesn't re-fetch old updates
+                        localStorage.setItem(LAST_UPDATE_KEY, String(lastUpdateId));
+                    }
+                },
+                error: function () {
+                    setDot('offline');
+                }
+            });
+        }
+
+        // ============================================================
+        // MESSAGE HANDLING
+        // ============================================================
+        function handleIncoming(msg, updateId) {
+            // Skip if this update has already been rendered (from history or previous polling)
+            if (updateId && seenUpdateIds.has(updateId)) return;
+            if (updateId) seenUpdateIds.add(updateId);
+
+            const sender = msg.from ? (msg.from.first_name || 'Unknown') : 'Unknown';
+            const isBot = msg.from && msg.from.is_bot;
+            const css = isBot ? 'msg-bot' : 'msg-other';
+            const nowMs = msg.date ? msg.date * 1000 : Date.now();
+            const ts = formatTime(Math.floor(nowMs / 1000));
+
+            // ── Detect media type ──────────────────────────────────────────
+            let mediaObj = null;
+            let mediaType = null;
+
+            if (msg.photo && msg.photo.length) {
+                // photo = array of PhotoSize, pick the highest resolution (last element)
+                mediaObj = msg.photo[msg.photo.length - 1];
+                mediaType = 'photo';
+            } else if (msg.document) {
+                mediaObj = msg.document;
+                mediaType = 'document';
+            } else if (msg.video) {
+                mediaObj = msg.video;
+                mediaType = 'video';
+            } else if (msg.audio) {
+                mediaObj = msg.audio;
+                mediaType = 'audio';
+            } else if (msg.voice) {
+                mediaObj = msg.voice;
+                mediaType = 'voice';
+            } else if (msg.sticker) {
+                mediaObj = msg.sticker;
+                mediaType = 'sticker';
+            }
+
+            if (mediaObj) {
+                const caption = msg.caption || '';
+                const fileName = (mediaObj.file_name) || (mediaType + '_' + (mediaObj.file_unique_id || ''));
+                const fileSize = mediaObj.file_size || 0;
+                appendMediaBubble({
+                    fileId: mediaObj.file_id,
+                    mediaType: mediaType,
+                    fileName: fileName,
+                    fileSize: fileSize,
+                    caption: caption,
+                    sender: sender,
+                    ts: ts,
+                    nowMs: nowMs,
+                    css: css,
+                    updateId: updateId
+                });
+            } else {
+                // Plain text message
+                const text = msg.text || msg.caption || '[non-text]';
+                appendMessage(text, sender, ts, css, nowMs, updateId);
+            }
+        }
+
+        /**
+         * Render bubble AND save to localStorage.
+         * @param {number} nowMs  - timestamp in milliseconds (for storage)
+         * @param {number|null} updateId - telegram update_id (for dedup)
+         */
+        function appendMessage(text, sender, ts, cssClass, nowMs, updateId) {
+            renderBubble(text, sender, ts, cssClass);
+
+            // Save to history (nowMs can be undefined if called manually)
+            if (nowMs !== undefined) {
+                saveHistory({
+                    text: text,
+                    sender: sender,
+                    ts: nowMs || Date.now(),
+                    cssClass: cssClass,
+                    updateId: updateId || null
+                });
+            }
+        }
+
+        /** Render HTML bubble only, without saving to storage */
+        function renderBubble(text, sender, ts, cssClass) {
+            const html = `
+    <div class="msg-bubble ${cssClass}">
+      <div class="msg-sender">${escapeHtml(sender)}</div>
+      <div>${escapeHtml(text)}</div>
+      <div class="msg-time">${ts}</div>
+    </div>`;
+            const $box = $('#chat-box');
+            $box.append(html);
+            $box.scrollTop($box[0].scrollHeight);
+        }
+
+        // ============================================================
+        // FILE UPLOAD
+        // ============================================================
+        const MAX_FILE_BYTES = 50 * 1024 * 1024; // 50 MB (Telegram Bot API limit)
+
+        function sendFile(file) {
+            if (!botToken || !chatId) { alert('Not logged in.'); return; }
+            if (file.size > MAX_FILE_BYTES) {
+                alert('File too large. Maximum is 50 MB (Telegram Bot API limit).');
+                return;
+            }
+
+            const isImage = file.type.startsWith('image/');
+            const endpoint = isImage ? 'sendPhoto' : 'sendDocument';
+            const field = isImage ? 'photo' : 'document';
+
+            const fd = new FormData();
+            fd.append('chat_id', chatId);
+            fd.append('caption', '[' + myName + '] sent a file');
+            fd.append(field, file, file.name);
+
+            // XHR for progress tracking
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', 'https://api.telegram.org/bot' + botToken + '/' + endpoint);
+
+            $('#upload-progress-wrap').removeClass('d-none');
+            $('#upload-progress-bar').css('width', '0');
+            $('#upload-status').text('Uploading ' + file.name + '...');
+            $('#msg-input, #btn-send').prop('disabled', true);
+
+            xhr.upload.onprogress = function (e) {
+                if (e.lengthComputable) {
+                    const pct = Math.round(e.loaded / e.total * 100);
+                    $('#upload-progress-bar').css('width', pct + '%');
+                    $('#upload-status').text('Uploading ' + pct + '%  — ' + file.name);
+                }
+            };
+
+            xhr.onload = function () {
+                $('#upload-progress-wrap').addClass('d-none');
+                $('#msg-input, #btn-send').prop('disabled', false);
+                try {
+                    const res = JSON.parse(xhr.responseText);
+                    if (res.ok && res.result) {
+                        const sentMsg = res.result;
+                        const nowMs = sentMsg.date ? sentMsg.date * 1000 : Date.now();
+                        const mediaObj = sentMsg.photo
+                            ? sentMsg.photo[sentMsg.photo.length - 1]
+                            : (sentMsg.document || sentMsg.video || sentMsg.audio || sentMsg.voice);
+                        const mType = sentMsg.photo ? 'photo'
+                            : sentMsg.document ? 'document'
+                                : sentMsg.video ? 'video'
+                                    : sentMsg.audio ? 'audio' : 'voice';
+
+                        seenUpdateIds.add('mid_' + sentMsg.message_id);
+                        $('#upload-status').text('Sent: ' + file.name);
+
+                        if (mediaObj) {
+                            appendMediaBubble({
+                                fileId: mediaObj.file_id,
+                                mediaType: mType,
+                                fileName: file.name,
+                                fileSize: file.size,
+                                caption: '',
+                                sender: myName + ' (You)',
+                                ts: formatTime(Math.floor(nowMs / 1000)),
+                                nowMs: nowMs,
+                                css: 'msg-bot',
+                                updateId: null
+                            });
+                        }
+                    } else {
+                        $('#upload-status').text('Failed: ' + (res.description || 'unknown error'));
+                    }
+                } catch (e) {
+                    $('#upload-status').text('Failed to parse response.');
+                }
+            };
+
+            xhr.onerror = function () {
+                $('#upload-progress-wrap').addClass('d-none');
+                $('#msg-input, #btn-send').prop('disabled', false);
+                $('#upload-status').text('Connection failed during upload.');
+            };
+
+            xhr.send(fd);
+        }
+
+        // ============================================================
+        // MEDIA BUBBLE
+        // ============================================================
+
+        const MEDIA_ICONS = {
+            photo: '\uD83D\uDDBC',  // 🖼
+            document: '\uD83D\uDCC4',  // 📄
+            video: '\uD83C\uDFA5',  // 🎥
+            audio: '\uD83C\uDFB5',  // 🎵
+            voice: '\uD83C\uDFA4',  // 🎤
+            sticker: '\uD83C\uDFAD'   // 🎭
+        };
+
+        /**
+         * Render a media bubble with a download button.
+         * For photos: load thumbnail asynchronously via getFile and insert inline.
+         */
+        function appendMediaBubble(opts) {
+            const icon = MEDIA_ICONS[opts.mediaType] || '\uD83D\uDCCE';
+            const sizeStr = opts.fileSize ? ' (' + formatBytes(opts.fileSize) + ')' : '';
+            const captionHtml = opts.caption ? '<div class="mt-1" style="font-size:.8rem;color:#ccc;">' + escapeHtml(opts.caption) + '</div>' : '';
+
+            // Unique container ID so we can insert the thumbnail later
+            const bubbleId = 'media-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+
+            const html = `
+<div class="msg-bubble msg-media ${opts.css}" id="${bubbleId}">
+  <div class="msg-sender">${escapeHtml(opts.sender)}</div>
+  <div class="d-flex align-items-center">
+    <span class="media-icon">${icon}</span>
+    <span class="media-filename">${escapeHtml(opts.fileName)}${escapeHtml(sizeStr)}</span>
+  </div>
+  ${captionHtml}
+  <div class="mt-2">
+    <button class="btn-dl" onclick="downloadMedia('${opts.fileId}', '${escapeHtml(opts.fileName)}')">&#8681; Download</button>
+  </div>
+  <div class="msg-time">${opts.ts}</div>
+</div>`;
+
+            const $box = $('#chat-box');
+            $box.append(html);
+            $box.scrollTop($box[0].scrollHeight);
+
+            // For photos: load thumbnail asynchronously and insert before the download button
+            if (opts.mediaType === 'photo' || opts.mediaType === 'sticker') {
+                getFileUrl(opts.fileId).then(function (url) {
+                    const $bubble = $('#' + bubbleId);
+                    $bubble.find('.btn-dl').before('<img src="' + url + '" alt="photo" onclick="window.open(this.src,\'_blank\')"/>');
+                    $box.scrollTop($box[0].scrollHeight);
+                }).catch(function () { /* thumbnail failed — harmless */ });
+            }
+
+            // Save to history
+            if (opts.nowMs !== undefined) {
+                saveHistory({
+                    type: 'media',
+                    fileId: opts.fileId,
+                    mediaType: opts.mediaType,
+                    fileName: opts.fileName,
+                    fileSize: opts.fileSize,
+                    caption: opts.caption,
+                    sender: opts.sender,
+                    ts: opts.nowMs || Date.now(),
+                    cssClass: opts.css,
+                    updateId: opts.updateId || null
+                });
+            }
+        }
+
+        /**
+         * Call the getFile API → return a direct download URL.
+         * URL is valid as long as the file exists on Telegram's servers.
+         */
+        function getFileUrl(fileId) {
+            return $.ajax({
+                url: apiUrl('getFile'),
+                data: { file_id: fileId },
+                method: 'GET'
+            }).then(function (res) {
+                if (res.ok && res.result.file_path) {
+                    return 'https://api.telegram.org/file/bot' + botToken + '/' + res.result.file_path;
+                }
+                throw new Error('getFile failed');
+            });
+        }
+
+        /** Open download URL in a new tab (browser handles download/view) */
+        function downloadMedia(fileId, fileName) {
+            getFileUrl(fileId).then(function (url) {
+                const a = document.createElement('a');
+                a.href = url;
+                a.target = '_blank';
+                a.download = fileName || 'file';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            }).catch(function () {
+                alert('Could not get download link. Please try again.');
+            });
+        }
+
+        function formatBytes(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / 1048576).toFixed(1) + ' MB';
+        }
+
+        function sendMessage() {
+            const text = $('#msg-input').val().trim();
+            if (!text) return;
+
+            $('#msg-input').val('').prop('disabled', true);
+
+            $.ajax({
+                url: apiUrl('sendMessage'),
+                method: 'POST',
+                data: { chat_id: chatId, text: '[' + myName + ']: ' + text },
+                success: function (res) {
+                    $('#msg-input').prop('disabled', false).focus();
+                    if (res.ok && res.result) {
+                        // Render directly from Telegram's response (message object).
+                        // This also saves to history and registers the updateId
+                        // so the next polling cycle won't show it as a duplicate.
+                        const msg = res.result;
+                        const nowMs = msg.date ? msg.date * 1000 : Date.now();
+                        const fakeUpdId = 'sent_' + msg.message_id; // unique pseudo-updateId
+                        seenUpdateIds.add(fakeUpdId);
+                        // Also mark message_id so polling recognises it when it arrives
+                        seenUpdateIds.add('mid_' + msg.message_id);
+                        appendMessage(
+                            '[' + myName + ']: ' + text,
+                            myName + ' (You)',
+                            formatTime(Math.floor(nowMs / 1000)),
+                            'msg-bot',
+                            nowMs,
+                            null // updateId null, but message_id is already registered
+                        );
+                    }
+                },
+                error: function () {
+                    $('#msg-input').prop('disabled', false);
+                    alert('Failed to send message. Check your connection or token.');
+                }
+            });
+        }
+
+        // ============================================================
+        // UTILS
+        // ============================================================
+        function formatTime(unixTs) {
+            const d = new Date(unixTs * 1000);
+            return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function escapeHtml(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+    </script>
+</body>
+
+</html>
